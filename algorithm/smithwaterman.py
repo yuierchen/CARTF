@@ -10,8 +10,8 @@ def compare(m, n, match, n_match):
         return n_match
 
 def Smith_Waterman(seq1, seq2, mS, mmS, w1):
-    print(seq1)
-    print(seq2)
+    # print(seq1)
+    # print(seq2)
     path = {}
     S = np.zeros([len(seq1) + 1, len(seq2) + 1], int)
 
@@ -36,7 +36,7 @@ def Smith_Waterman(seq1, seq2, mS, mmS, w1):
                 if Q == S[i, j]:
                     path['[' + str(i) + ', ' + str(j) + ']'].append('[' + str(i) + ', ' + str(j - 1) + ']')
 
-    print("S = ", S)
+    # print("S = ", S)
     end = np.argwhere(S == S.max())
     match_max_length=[]
     for i in end:
@@ -100,7 +100,7 @@ def traceback(path, S, value, result, seq1, seq2):
         key = value[0]
         result.append(key)
         value = path[key]
-        print(key)
+        # print(key)
         i = int((key.split(',')[0]).strip('['))
         j = int((key.split(',')[1]).strip(']'))
     if S[i, j] == 0:
@@ -127,11 +127,11 @@ def traceback(path, S, value, result, seq1, seq2):
                 md += '|'
             x = i
             y = j
-        print('alignment result:')
-        print('s1: %s'%s1)
-        print('    '+md)
-        print('s2: %s'%s2)
-        # print(max(len(s1),len(s2)))
+        # print('alignment result:')
+        # print('s1: %s'%s1)
+        # print('    '+md)
+        # print('s2: %s'%s2)
+        # # print(max(len(s1),len(s2)))
         return max(len(s1),len(s2))
     else:
          return traceback(path, S, value, result, seq1, seq2)
@@ -150,6 +150,7 @@ def traceback(path, S, value, result, seq1, seq2):
 # fr1.close()
 # fr2.close()
 # m=Smith_Waterman(['1','[','2',']','3','5'], ['1','1',']','1','1','[','2','3','2','3','3'], 1, -1/3, 1)
+# print(m)
 # m=Smith_Waterman(['[', 'k', '[', ']', '[', '#', ']', 'o', 'y', '#', '[', 'J', '[', '?', '[', '$', '#', ']', '[', '>', '#', '[', '0', '[', '#', '#', '[', 'z', '#', '#', ']', ']', '&', ']', ']', ']', '[', '4', '[', 'I', '#', '[', 'java.lang.String.format', '#', '#', '[', '#', '#', '[', 'z', '#', '#', ']', ']', '[', '#', '#', ']', ']', ']', ']', ']', ']']
 # , ['[', 'k', '[', ']', 'o', 'y', '#', '[', 'J', '[', '?', 'y', '[', '>', '#', '[', '[', 'z', '#', '#', ']', '#', ']', ']', ']', '[', '4', '[', 'java.util.logging.Logger.log', '[', 'java.util.logging.Logger.getLogger', '#', '#', '&', ']', '#', '[', 'z', '#', '#', ']', '&', '#', ']', ']', '[', '@', 'L', ']', ']', ']'], 1, -1/3, 1)
 # print('length',m)

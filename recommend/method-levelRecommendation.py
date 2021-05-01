@@ -24,28 +24,21 @@ import nimfa
 import time
 
 def main():
-    w2v = gensim.models.Word2Vec.load('../data/w2v_model_stemmed')  # pre-trained word embedding
-    idf = pickle.load(open('../data/idf', 'rb'))  # pre-trained idf value of all words in the w2v dictionary
-    records = pickle.load(open("../data/records.pkl", 'rb'))
+    w2v = gensim.models.Word2Vec.load('../data/skip_w2v_model_stemmed')  # pre-trained word embedding
+    idf = pickle.load(open('../data/my_idf', 'rb'))  # pre-trained idf value of all words in the w2v dictionary
+    records = pickle.load(open("../data/records_final.pkl", 'rb'))
     #获取需要推荐的问题
+    print(len(records))
     experiments =util.get_experiments()
     print(len(experiments))
-    csvfile_path = os.path.join(args.output_path, "topmethod.csv")#输出结果
+    csvfile_path = os.path.join(args.output_path, "topmethod_expand200-10.csv")#输出结果
     csvfile = open(csvfile_path, 'w', newline="")
     writer = csv.writer(csvfile)
-    writer.writerow(["question_title","top5", "is_exist","is_global_exist","ground_truth_intersection","true_apis"])
-    #所有问题的api的集合，看这个集合里面是否有答案存在
-    global_record_api = list()
-    for record in records:
-        for api in record.method_api_sequence:
-            if api not in global_record_api:
-                global_record_api.append(api)
+    writer.writerow(["question_title","top5","ground_truth_intersection","true_apis"])
 
     #统计能进行推荐的问题个数，推荐出来的问题的个数
     recommend_num=0
     recommend_success_num=0
-    true_num = 0
-    global_true_num = 0
     processnum=0
     #统计指标
     mrr = 0.0
@@ -62,27 +55,25 @@ def main():
         experiment_true_api=experiment.true_api
         experiment_now_api=experiment.now_api
         experiment_true_api=set(experiment_true_api)-set(experiment_now_api)
-        experiment_decompose_methodname=experiment.decompose_methodname
-        full_query=experiment_method_annotation+" "+experiment_decompose_methodname
-        full_query_words = WordPunctTokenizer().tokenize(full_query.lower())
-        full_query_words = [SnowballStemmer('english').stem(word) for word in full_query_words]
-        full_query_matrix = similarity.init_doc_matrix(full_query_words, w2v)
-        full_query_idf_vector = similarity.init_doc_idf_vector(full_query_words, idf)
-        query_words = WordPunctTokenizer().tokenize(experiment_method_annotation.lower())
+        query=experiment_method_annotation
+        query_words = WordPunctTokenizer().tokenize(query.lower())
         query_words = [SnowballStemmer('english').stem(word) for word in query_words]
+        query_matrix = similarity.init_doc_matrix(query_words, w2v)
+        query_idf_vector = similarity.init_doc_idf_vector(query_words, idf)
+
 
         #获取相似的TOP-N问题
-        top_questions = similarity.get_topk_questions(full_query_matrix, full_query_idf_vector, records, 50, 0.0)
+        top_questions = similarity.get_topk_questions(experiment_method_annotation,query_matrix, query_idf_vector, records, 200, 0.0)
         #获取得到问题的长度
-        print(top_questions)
+        # print(top_questions)
         similar_questions_length=len(top_questions)
-        print("similar_questions_length:",similar_questions_length)
+        # print("similar_questions_length:",similar_questions_length)
         #查看现有问题是否在相似问题中，如果不在则加入，否则直接根据相似问题构建张量
         flag=False
 
         similar_records_list=list(top_questions.keys())
         for record in similar_records_list:
-            if(record.method_annotation_words ==query_words):
+            if(record.title_words ==query_words):
                 flag=True
         processnum+=1
         #现有问题在相似问题里面
@@ -90,8 +81,8 @@ def main():
         record_method_flat = list()
         record_api = list()
         for record in similar_records_list:
-            if record.method_annotation_words not in record_method_annotation_words:
-                record_method_annotation_words.append(record.method_annotation_words)
+            if record.title_words not in record_method_annotation_words:
+                record_method_annotation_words.append(record.title_words)
             if record.method_block_flat not in record_method_flat:
                 record_method_flat.append(record.method_block_flat)
             for api in record.method_api_sequence:
@@ -104,7 +95,7 @@ def main():
         api_rec = []
         if flag==True:
             recommend_num+=1
-            print(len(record_method_annotation_words), len(record_method_flat), len(record_api))
+            # print(len(record_method_annotation_words), len(record_method_flat), len(record_api))
             record_method_annotation_words_dict = dict(zip(range(len(record_method_annotation_words)), record_method_annotation_words))
             record_method_flat_dict = dict(zip(range(len(record_method_flat)), record_method_flat))
             record_api_dict = dict(zip(range(len(record_api)), record_api))
@@ -113,7 +104,7 @@ def main():
                 for concrete_api in record.method_api_sequence:
                     tensor[list(record_method_annotation_words_dict.keys())[
                                list(record_method_annotation_words_dict.values()).index(
-                                   record.method_annotation_words)],
+                                   record.title_words)],
                            list(record_method_flat_dict.keys())[
                                list(record_method_flat_dict.values()).index(record.method_block_flat)],
                            list(record_api_dict.keys())[list(record_api_dict.values()).index(concrete_api)]] = 1
@@ -126,6 +117,8 @@ def main():
                            list(record_api_dict.keys())[list(record_api_dict.values()).index(api)]] = 1
             #处理不是张量的情况
             one = query_words
+            if len(record_api)==0:
+                continue
             if(len(record_method_annotation_words) ==1 or len(record_method_flat) ==1 or len(record_api) ==1):
                 if(len(record_method_annotation_words) ==1 and len(record_method_flat) ==1
                         or len(record_method_flat) ==1 and len(record_api) ==1
@@ -229,7 +222,7 @@ def main():
             for record in similar_records_list:
                 for concrete_api in record.method_api_sequence:
                     tensor[list(record_method_annotation_words_dict.keys())[
-                            list(record_method_annotation_words_dict.values()).index(record.method_annotation_words)],
+                            list(record_method_annotation_words_dict.values()).index(record.title_words)],
                                list(record_method_flat_dict.keys())[
                                    list(record_method_flat_dict.values()).index(record.method_block_flat)],
                                list(record_api_dict.keys())[list(record_api_dict.values()).index(concrete_api)]] = 1
@@ -243,6 +236,8 @@ def main():
                            list(record_api_dict.keys())[list(record_api_dict.values()).index(api)]] = 1
             #处理不是张量分解
             one = query_words
+            if len(record_api) == 0:
+                continue
             if (len(record_method_annotation_words) == 1 or len(record_method_flat) == 1 or len(record_api) == 1):
                 if (len(record_method_annotation_words) == 1 and len(record_method_flat) == 1
                         or len(record_method_flat) == 1 and len(record_api) == 1
@@ -327,16 +322,7 @@ def main():
                 api_rec = api_rec_all[:rec_num]
         #判断结果在相似的问题中有没有出现
 
-        appearance_flag=True
-        if(len(set(experiment_true_api).intersection(set(record_api)))==0):
-            appearance_flag=False
-        if(appearance_flag==True):
-            true_num+=1
-        global_appearance_flag=True
-        if (len(set(experiment_true_api).intersection(set(global_record_api))) == 0):
-            global_appearance_flag = False
-        if(global_appearance_flag==True):
-            global_true_num+=1
+
 
         pos = -1
         tmp_map=0.0
@@ -366,13 +352,11 @@ def main():
         recall+=len(ground_truth_intersection)/len(set(experiment_true_api))
         writer.writerow([experiment_method_annotation,
                          api_rec,
-                         appearance_flag,
-                         global_appearance_flag,
                          ground_truth_intersection,
                          experiment_true_api])
 
-    writer.writerow(["recommend_num","recommend_success_num","exist_in_similar_questions_num","exist_in_global_num"])
-    writer.writerow([recommend_num,recommend_success_num,true_num,global_true_num])
+    writer.writerow(["recommend_num","recommend_success_num"])
+    writer.writerow([recommend_num,recommend_success_num])
     writer.writerow(["mrr/recommend_num", "recommend_num", "map/recommend_num", "success_rate@N", "precision@N/recommend_num",
                      "recall@N/recommend_num","ndcg/recommend_num"]),
     writer.writerow([mrr /recommend_num, recommend_num, map / recommend_num, recommend_success_num / recommend_num, precision / recommend_num,
@@ -396,7 +380,7 @@ def main():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-s', dest="output_path",
-                        default='../data/0%/',
+                        default='../data/80%/',
                         help='Path to output file ')
     parser.add_argument('-r', dest="r_rank", default=10, type=int,
                         help="The rank of the decomposition matirx. Default: 10")
